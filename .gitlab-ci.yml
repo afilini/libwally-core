@@ -136,6 +136,23 @@ windows10_release:
     - call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" amd64
     - tools\msvc\wheel.bat
 
+webassembly_release:
+  image: greenaddress/wallycore@sha256:4545dda880f99c294b9e673a9a97a1bbc6a19b5afcbec504e2d89c5f62d647d7
+  artifacts:
+    expire_in: 1 day
+    name: wallycore-bindings
+    when: on_success
+    paths:
+    - wally_dist/*
+  tags:
+    - ga
+  before_script:
+    - source /opt/emsdk/emsdk_env.sh
+  script:
+    - cd $CI_PROJECT_DIR
+    - tools/build_wasm.sh
+    - mkdir wally_dist && mv wallycore.{js,html,wasm} wally_dist
+
 apidocs:
   image: greenaddress/wallycore@sha256:d76dbd6c02de1a20a096dccc3c846dc3121c964852292c6c918eb068838d934c
   artifacts:
