@@ -9,5 +9,4 @@ fi
 $PWD/tools/cleanup.sh && $PWD/tools/autogen.sh
 emconfigure ./configure --disable-swig-python --disable-swig-java --enable-export-all --enable-elements --enable-ecmult-static-precomputation
 emmake make -j $num_jobs
-#FIXME: this is just an example, numerous functions are missing
-emcc -O2 -s "EXTRA_EXPORTED_RUNTIME_METHODS=['getValue', 'UTF8ToString']" -s "EXPORTED_FUNCTIONS=['_wally_init','_wally_get_secp_context','_wally_secp_randomize', '_wally_free_string', '_bip39_get_wordlist', '_bip39_mnemonic_from_bytes', '_bip39_mnemonic_to_seed']" ./src/.libs/*.o src/secp256k1/src/*.o src/ccan/ccan/crypto/*/.libs/*.o ./src/ccan/ccan/str/hex/.libs/*.o -o wallycore.html --shell-file contrib/shell_minimal.html
+emcc -O2 -s "EXTRA_EXPORTED_RUNTIME_METHODS=['getValue', 'UTF8ToString', 'ccall', 'cwrap', 'malloc']" -s LINKABLE=1 -s EXPORT_ALL=1 ./src/.libs/*.o src/secp256k1/src/*.o src/ccan/ccan/crypto/*/.libs/*.o ./src/ccan/ccan/str/hex/.libs/*.o -o wallycore.html --shell-file contrib/shell_minimal.html
