@@ -5,35 +5,86 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <title>Wallycore shell</title>
     <style>
-      textarea { font-family: monospace; width: 80%; padding-right: 0; margin-left: auto; margin-right: auto; display: block;}
+      pre { font-family: monospace; width: 80%; min-height: 600px; margin-left: auto; margin-right: auto; display: block; word-break: break-all; white-space: pre-wrap; border: 1px dashed black; padding: 8px;}
     </style>
   </head>
   <body>
-    <textarea id="output" rows="8"></textarea>
-    <script type='text/javascript'>
-      var element = document.getElementById('output');
-      var wally_example = function() {
-          element.value = "wally_init ... " + ccall("wally_init", 'number', ['number'], [0]);
+    <pre id="output" rows="8"></pre>
+    <script src="https://peterolson.github.io/BigInteger.js/BigInteger.min.js"></script>
+    <script type="text/javascript">
+        var element = document.getElementById('output');
 
-          var entropy_ctx = new Uint8Array(32); // WALLY_SECP_RANDOMIZE_LEN
-          window.crypto.getRandomValues(entropy_ctx);
+        function arr_to_str(args) {
+            if (!Array.isArray(args)) {
+                args = [args];
+            }
 
-          element.value = element.value + "\nwally_secp_randomize ... " + ccall("wally_secp_randomize", 'number', ['array', 'number'], [entropy_ctx, entropy_ctx.length]);
+            return args
+                .map((x) => {
+                    if (x instanceof Uint8Array) {
+                        return '0x' + Module.hex_from_bytes(x);
+                    }
+                    if (typeof x === 'string') {
+                        return "'" + x + "'";
+                    }
+                    if (x === null || x === undefined) {
+                        return "null";
+                    }
 
-          var entropy_bip39 = new Uint8Array(40); // BIP39_ENTROPY_LEN_320
-          window.crypto.getRandomValues(entropy_bip39);
-          var mnemonic_ptr = Module._malloc(32);
+                    return x.toString();
+                })
+                .join(', ');
+        }
 
-          element.value = element.value + "\nbip39_mnemonic_from_bytes ... " + ccall('bip39_mnemonic_from_bytes', 'number', ['number', 'array', 'number', 'number'], [null, entropy_bip39, entropy_bip39.length, mnemonic_ptr]);
-          element.value = element.value + "\n\t" + UTF8ToString(getValue(mnemonic_ptr, '*'));
-          element.value = element.value + "\nwally_free_string ... " + ccall('wally_free_string', 'number', ['number'], [mnemonic_ptr]);
-          Module._free(mnemonic_ptr);
-      }
-      var Module = {
-        preRun: [],
-        postRun: [wally_example],
-      };
+        function call_and_log(name, args) {
+            element.innerText = element.innerText + name + "(" + arr_to_str(args) + ")\n";
+            var ret = Module[name].apply(this, args);
+            element.innerText = element.innerText + "\t[" + arr_to_str(ret) + "]\n\n";
+            
+            return ret;
+        }
+
+        function run() {
+            element.innerText = "";
+
+            var wif = "cVicwmaQHwuB89bzJVGCe3pATSGuit2LjWesYyh4nuavKQxC4TaC";
+            var sk = call_and_log('wif_to_bytes', [wif, 0xef, Module.WALLY_WIF_FLAG_COMPRESSED]);
+            var pk = call_and_log('ec_public_key_from_private_key', [sk]);
+
+            var scriptPubKey = call_and_log('scriptpubkey_p2pkh_from_bytes', [pk, Module.WALLY_SCRIPT_HASH160]); 
+
+            var tx = call_and_log('tx_init', [2, 0, 1, 1]);
+
+            var in_txhash_rev = call_and_log('hex_to_bytes', ["df33b0c6fd803d0010676af50bb6f9b81138db935310860978ea99758c681654"]).reverse();
+            var in_vout = 0;
+            call_and_log('tx_add_raw_input', [tx, in_txhash_rev, in_vout, 0xffffffff, null, null, 0]);
+
+            var fee = 500;
+            var out_sat = bigInt(99999000 - fee);
+            call_and_log('tx_add_raw_output', [tx, out_sat, scriptPubKey, 0]);
+
+            var unsigned_tx_hex = call_and_log('tx_to_hex', [tx, 0]);
+            
+            var signature_hash = call_and_log('tx_get_btc_signature_hash', [tx, 0, scriptPubKey, 0, Module.WALLY_SIGHASH_ALL, 0]);
+            var sig = call_and_log('ec_sig_from_bytes', [sk, signature_hash, Module.EC_FLAG_ECDSA | Module.EC_FLAG_GRIND_R]);
+
+            var scriptsig = call_and_log('scriptsig_p2pkh_from_sig', [pk, sig, Module.WALLY_SIGHASH_ALL]);
+
+            call_and_log('tx_set_input_script', [tx, 0, scriptsig]);
+            var signed_tx = call_and_log('tx_to_hex', [tx, 0]);
+
+            call_and_log('tx_get_output_satoshi', [tx, 0]);
+
+            tx.destroy();
+        }
+
+        var Module = {
+            preRun: [],
+            postRun: [run]
+        };
     </script>
     {{{ SCRIPT }}}
   </body>
 </html>
+
+
